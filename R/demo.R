@@ -11,7 +11,9 @@ new_ard_summary_block <- function(header = "**{level}**", ...) {
             expr = reactive(
               bquote(
                 {
-                  gtsummary::tbl_ard_summary(data, by = ARM) |>
+                  data |>
+                    dplyr::filter(group1_level != "Total") |>
+                    gtsummary::tbl_ard_summary(by = "TRT") |>
                     gtsummary::add_stat_label() |>
                     gtsummary::modify_header(
                       gtsummary::all_stat_cols() ~ "**{level}**"
@@ -19,15 +21,15 @@ new_ard_summary_block <- function(header = "**{level}**", ...) {
                     gtsummary::as_gt() |>
                     gt::tab_style(
                       gt::cell_fill("grey"),
-                      gt::cells_column_labels(stat_1)
+                      gt::cells_column_labels(label)
                     ) |>
                     gt::tab_style(
                       gt::cell_fill("lightblue"),
-                      gt::cells_column_labels(stat_2)
+                      gt::cells_column_labels(stat_1)
                     ) |>
                     gt::tab_style(
                       gt::cell_fill("lightblue3"),
-                      gt::cells_column_labels(stat_3)
+                      gt::cells_column_labels(stat_2)
                     )
                   },
                 list(
@@ -86,23 +88,44 @@ new_ard_barplot_block <- function(group = character(), ...) {
             expr = reactive(
               bquote(
                 {
-                  format_stat <- function(dat, stat, fun = identity, ...) {
-                    format(fun(dat$stat[[which(dat$stat_name == stat)]]), ...)
+                  format_stat <- function(dat, var, stat, fun = identity, ...) {
+                    hit <- which(dat$stat_name == stat & dat$variable == var)
+                    format(fun(dat$stat[[hit]]), ...)
                   }
                   data <- data[data$group1 == .(grp), ]
-                  est_dat <- data[grepl("estimate[0-9]+", data$stat_name), ]
-                  est_dat$stat <- unlist(est_dat$stat)
 
-                  max_val <- max(est_dat$stat)
+                  data$stat <- as.numeric(data$stat)
+                  data$group1_level <- factor(
+                    data$group1_level,
+                    levels = c("PBO", "DEUC 6 mg")
+                  )
+
+                  est_all <- data[grepl("RESPONSE RATE", data$variable), ]
+
+                  est_dat <- est_all[est_all$stat_name == "p", ]
+
+                  est_err <- merge(
+                    est_all[est_all$stat_name == "ci_low", ],
+                    est_all[est_all$stat_name == "ci_high", ],
+                    by = c("group1", "group1_level", "variable")
+                  )
+
+                  max_val <- max(est_err$stat.y)
 
                   ggplot2::ggplot(est_dat,
-                                  ggplot2::aes(stat_label, unlist(stat))) +
-                    ggplot2::geom_col(ggplot2::aes(fill = stat_label)) +
-                    ggplot2::labs(y = unique(data$variable), x = NULL) +
+                                  ggplot2::aes(group1_level, stat)) +
+                    ggplot2::geom_col(ggplot2::aes(fill = group1_level)) +
+                    ggplot2::geom_errorbar(data = est_err,
+                                           ggplot2::aes(x = group1_level,
+                                                        ymin = stat.x,
+                                                        y = stat.x,
+                                                        ymax = stat.y),
+                                           width = 0.2) +
+                    ggplot2::labs(y = unique(est_dat$variable), x = NULL) +
                     ggplot2::scale_fill_manual(
                       values = c(
-                        "grey",
-                        if (grepl("High", .(grp))) "lightblue" else "lightblue3"
+                        PBO = "grey",
+                        `DEUC 6 mg` = "lightblue3"
                       ),
                       guide = "none"
                     ) +
@@ -112,19 +135,18 @@ new_ard_barplot_block <- function(group = character(), ...) {
                       xmax = 2,
                       annotation = paste0(
                         "atop(Delta ~ ",
-                        format_stat(data, "estimate", digits = 3),
+                        format_stat(data, "DIFFERENCE VS PLACEBO (%)", "n",
+                                    digits = 3),
                         "~and~italic(P) == ",
-                        format_stat(data, "p.value", digits = 3),
-                        ", (",
-                        format_stat(data, "conf.level", function(x) x * 100,
-                                    digits = 2),
-                        "~'%'~CI~",
-                        format_stat(data, "conf.low", digits = 3),
+                        format_stat(data, "P-VALUE", "p_value", digits = 3),
+                        ", (95~'%'~CI~",
+                        format_stat(data, "DIFFERENCE VS PLACEBO (%)",
+                                    "ci_low", digits = 3),
                         "~to~",
-                        format_stat(data, "conf.level", digits = 3),
+                        format_stat(data, "DIFFERENCE VS PLACEBO (%)",
+                                    "ci_high", digits = 3),
                         "))"
                       ),
-                      tip_length = (max_val * 1.1 - est_dat$stat) / 2,
                       parse = TRUE,
                       textsize = 5
                     ) +
