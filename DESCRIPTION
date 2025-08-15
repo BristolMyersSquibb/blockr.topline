@@ -18,4 +18,5 @@ Imports:
     blockr.ggplot,
     ggplot2,
     ggsignif,
-    visR
+    visR,
+    flextable

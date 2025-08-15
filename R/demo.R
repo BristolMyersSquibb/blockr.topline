@@ -1,7 +1,10 @@
 #' @export
-new_ard_summary_block <- function(header = "**{level}**", ...) {
+new_ard_summary_block <- function(header = "**{level}**",
+                                  continous = "{median} ({p25}, {p75})",
+                                  categorical = "{n} ({p}%)",
+                                  ...) {
 
-  blockr.gt:::new_gt_block(
+  new_flextable_block(
     server = function(id, data) {
       moduleServer(
         id,
@@ -13,32 +16,29 @@ new_ard_summary_block <- function(header = "**{level}**", ...) {
                 {
                   data |>
                     dplyr::filter(group1_level != "Total") |>
-                    gtsummary::tbl_ard_summary(by = "TRT") |>
+                    gtsummary::tbl_ard_summary(
+                      by = "TRT",
+                      statistic = list(
+                        gtsummary::all_continuous() ~ .(cont),
+                        gtsummary::all_categorical() ~ .(cat))
+                    ) |>
                     gtsummary::add_stat_label() |>
                     gtsummary::modify_header(
-                      gtsummary::all_stat_cols() ~ "**{level}**"
+                      gtsummary::all_stat_cols() ~ .(head)
                     ) |>
-                    gtsummary::as_gt() |>
-                    gt::tab_style(
-                      gt::cell_fill("grey"),
-                      gt::cells_column_labels(label)
-                    ) |>
-                    gt::tab_style(
-                      gt::cell_fill("lightblue"),
-                      gt::cells_column_labels(stat_1)
-                    ) |>
-                    gt::tab_style(
-                      gt::cell_fill("lightblue3"),
-                      gt::cells_column_labels(stat_2)
-                    )
+                    gtsummary::as_flex_table()
                   },
                 list(
-                  header = sub("\\n", "\n", input$header, fixed = TRUE)
+                  head = sub("\\n", "\n", input$header, fixed = TRUE),
+                  cont = sub("\\n", "\n", input$continous, fixed = TRUE),
+                  cat = sub("\\n", "\n", input$categorical, fixed = TRUE)
                 )
               )
             ),
             state = list(
-              header = reactive(input$header)
+              header = reactive(input$header),
+              continous = reactive(input$continous),
+              categorical = reactive(input$categorical)
             )
           )
         }
@@ -50,6 +50,16 @@ new_ard_summary_block <- function(header = "**{level}**", ...) {
           NS(id, "header"),
           label = "Header",
           value = header
+        ),
+        textInput(
+          NS(id, "continous"),
+          label = "Continous",
+          value = continous
+        ),
+        textInput(
+          NS(id, "categorical"),
+          label = "Categorical",
+          value = categorical
         )
       )
     },
