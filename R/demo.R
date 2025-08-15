@@ -145,7 +145,7 @@ new_ard_barplot_block <- function(group = character(), ...) {
                       xmax = 2,
                       annotation = paste0(
                         "atop(Delta ~ ",
-                        format_stat(data, "DIFFERENCE VS PLACEBO (%)", "n",
+                        format_stat(data, "DIFFERENCE VS PLACEBO (%)", "p",
                                     digits = 3),
                         "~and~italic(P) == ",
                         format_stat(data, "P-VALUE", "p_value", digits = 3),
